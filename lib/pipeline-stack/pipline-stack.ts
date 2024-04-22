@@ -1,6 +1,34 @@
-import { Stack, StackProps } from "aws-cdk-lib";
+import { Environment, Stack, StackProps, Stage, StageProps } from "aws-cdk-lib";
 import { CodePipelineSource, ShellStep, CodePipeline } from "aws-cdk-lib/pipelines";
 import { Construct } from "constructs";
+import { SnsStack } from "../sns-stack/sns-stack";
+
+
+const accounts = [
+    {
+      account: "471112839043",
+      stage: "prod",
+      region: "us-east-1",
+    },
+    // {
+    //   account: "147866640792",
+    //   stage: "stage",
+    //   region: "us-east-1",
+    // },
+  ];
+
+  export interface CdkStackProps extends StageProps {
+    stageName: string;
+  }
+
+  class PipelineStages extends Stage {
+    constructor(scope: Construct, id: string, props?: CdkStackProps) {
+      super(scope, id, props);
+      
+      new SnsStack(this, `SnsStack-${props?.env?.account}`);
+
+    }
+  }
 
 export class PipelineStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
@@ -15,6 +43,17 @@ export class PipelineStack extends Stack {
           }),
           commands: ["npm install", "npm ci", "npm run build", "npx cdk synth"],
         }),
-      }); 
+      });
+      
+      accounts.forEach((account) => {
+        pipeline.addStage(
+          new PipelineStages(this, `${account.stage}`, {
+            stageName: account.stage,
+            env: {account: account.account, region: account.region}
+          })
+        );
+      });
+      pipeline.buildPipeline();
+
   }
 }
